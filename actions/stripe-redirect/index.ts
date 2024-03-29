@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@clerk/nextjs";
+import { auth, currentUser } from "@clerk/nextjs";
 import { revalidatePath } from "next/cache";
 import { ACTION, ENTITY_TYPE } from "@prisma/client";
 
@@ -15,8 +15,8 @@ import { stripe } from "@/lib/stripe";
 
 const handler = async (data: InputType): Promise<ReturnType> => {
   const { userId, orgId } = auth();
-
-  if (!userId || !orgId) {
+  const user = await currentUser();
+  if (!userId || !orgId || !user) {
     return {
       error: "Unathorized",
     };
@@ -41,13 +41,44 @@ const handler = async (data: InputType): Promise<ReturnType> => {
 
       url = stripeSession.url;
     } else {
-      //TODO 34:16 https://www.codewithantonio.com/courses/114b1294-4c70-48b7-8758-7664e8f2b2c3/chapters/a6bfdf3f-7c75-49e5-b1da-cff78b639c16
-      // NEXT_PUBLIC_APP_URL=http://localhost:3000
-      //
-    }
-  } catch (error) {}
+      const stripeSession = await stripe.checkout.sessions.create({
+        success_url: settingsUrl,
+        cancel_url: settingsUrl,
+        payment_method_types: ["card"],
+        mode: "subscription",
+        billing_address_collection: "auto",
+        customer_email: user.emailAddresses[0].emailAddress,
+        line_items: [
+          {
+            price_data: {
+              currency: "USD",
+              product_data: {
+                name: "Taskify Pro",
+                description: "Unlimited boards for your organization",
+              },
+              unit_amount: 2000,
+              recurring: {
+                interval: "month",
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          orgId,
+        },
+      });
 
-  return "";
+      url = stripeSession.url || "";
+    }
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Something went wrong!",
+    };
+  }
+  revalidatePath(`/organization/${orgId}`);
+  return { data: url };
 };
 
 export const stripeRedirect = createSafeAction(StripeRedirect, handler);
