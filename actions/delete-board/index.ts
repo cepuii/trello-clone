@@ -12,6 +12,7 @@ import { createAuditLog } from "@/lib/create-audit-log";
 import { InputType, ReturnType } from "./types";
 import { DeleteBoard } from "./schema";
 import { decreaseAvailableCount } from "@/lib/org-limit";
+import { checkSubscription } from "@/lib/subscription";
 
 const handler = async (data: InputType): Promise<ReturnType> => {
   const { userId, orgId } = auth();
@@ -32,8 +33,11 @@ const handler = async (data: InputType): Promise<ReturnType> => {
         orgId,
       },
     });
+    const isPro = await checkSubscription();
 
-    await decreaseAvailableCount();
+    if (isPro) {
+      await decreaseAvailableCount();
+    }
 
     await createAuditLog({
       entityId: board.id,
