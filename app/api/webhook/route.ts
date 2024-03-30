@@ -4,8 +4,6 @@ import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-// TODO 44:40
-
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = headers().get("Stripe-Signature") as string;
